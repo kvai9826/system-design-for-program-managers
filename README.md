@@ -12,6 +12,7 @@ Most system design resources are written by software engineers for software engi
 - **Engineering Roadmap**: [IMPROVEMENT_ROADMAP.md](./IMPROVEMENT_ROADMAP.md) (workstream execution plan and acceptance criteria)
 - **Architectural Glossary**: [GLOSSARY.md](./GLOSSARY.md) (standardized terms, formulas, and acronyms)
 - **Changelog**: [CHANGELOG.md](./CHANGELOG.md) (record of technical revisions and updates)
+- **AI & LLM Ingestion**: [llms.txt](./llms.txt) | [llms-full.txt](./llms-full.txt) (consolidated prompt bundle for Claude, ChatGPT, Gemini)
 
 ---
 
@@ -43,7 +44,53 @@ flowchart LR
 
 ---
 
-## 2. Master Table of Contents & Learning Progression
+## 2. Load the Complete Course into ChatGPT, Claude, or Any AI Tool
+
+You can pull the entire curriculum (~45k tokens) into ChatGPT, Claude, Google Gemini, Cursor, or NotebookLM in one command to turn your AI into a personalized TPM mentor and mock interview partner.
+
+### Method 1: Instant Clipboard Copy (Paste directly into Claude or ChatGPT)
+Copy the entire 26-chapter curriculum directly to your clipboard:
+
+- **macOS**:
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/kvai9826/system-design-for-program-managers/main/llms-full.txt | pbcopy
+  ```
+- **Linux** (requires `xclip`):
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/kvai9826/system-design-for-program-managers/main/llms-full.txt | xclip -selection clipboard
+  ```
+- **Windows (PowerShell)**:
+  ```powershell
+  (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/kvai9826/system-design-for-program-managers/main/llms-full.txt").Content | Set-Clipboard
+  ```
+
+### Method 2: Download Single File (Upload to Claude Projects, Custom GPTs, or NotebookLM)
+Download the consolidated course bundle as a single markdown file:
+```bash
+curl -fsSL https://raw.githubusercontent.com/kvai9826/system-design-for-program-managers/main/llms-full.txt -o system-design-handbook.md
+```
+Upload `system-design-handbook.md` into:
+- **Claude Projects**: Add to Project Knowledge for ongoing coaching.
+- **ChatGPT Custom GPTs**: Add to Knowledge Files.
+- **Google NotebookLM**: Import as a primary notebook source for instant Q&A, audio overviews, and study guides.
+
+### Method 3: Direct Prompting with Web-Browsing AI
+In ChatGPT (with Web Browsing), Perplexity, or Claude:
+```text
+Please read and ingest the full System Design for Program Managers handbook from:
+https://raw.githubusercontent.com/kvai9826/system-design-for-program-managers/main/llms-full.txt
+
+You are now my Principal TPM Mentor. Run a 45-minute mock system design interview with me. Start by asking me to choose one of the 5 case studies or proposing a problem statement, and evaluate my answers using the TPM Rubric in the handbook.
+```
+
+### Method 4: Official LLM Discovery Standard
+This repository implements the [llms.txt](https://llmstxt.org) standard:
+- **Course Index**: [`llms.txt`](./llms.txt)
+- **Full Consolidated Text**: [`llms-full.txt`](./llms-full.txt)
+
+---
+
+## 3. Master Table of Contents & Learning Progression
 
 ### [Module 1: Distributed Systems Foundations](./01-foundations/README.md)
 *Level: Beginner to Intermediate | Prerequisites: Basic networking and client-server concepts*
@@ -100,7 +147,7 @@ flowchart LR
 
 ---
 
-## 3. Recommended Study Paths
+## 4. Recommended Study Paths
 
 ```mermaid
 flowchart TD
@@ -122,7 +169,7 @@ flowchart TD
 
 ---
 
-## 4. Visual Architecture Reference Map
+## 5. Visual Architecture Reference Map
 
 ```mermaid
 flowchart LR
@@ -166,7 +213,7 @@ flowchart LR
 
 ---
 
-## 5. TPM System Design Evaluation Rubric
+## 6. TPM System Design Evaluation Rubric
 
 Top technology companies assess TPM candidates across five primary dimensions:
 
@@ -180,6 +227,6 @@ Top technology companies assess TPM candidates across five primary dimensions:
 
 ---
 
-## 6. How to Contribute
+## 7. How to Contribute
 
 Contributions, corrections, and additional case studies from practicing TPMs and engineering leaders are welcome. Please open a pull request or issue following the standard GitHub markdown guidelines and style conventions.

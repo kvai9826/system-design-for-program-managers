@@ -1,0 +1,14 @@
+# System Design for Program Managers
+
+> A book-grade distributed systems reference handbook and curriculum built specifically for Technical Program Managers (TPMs), Product Managers, and engineering leaders.
+
+## Core Curriculum Modules
+- [Module 1: Foundations](01-foundations/README.md): Client-server networking, HTTP/3, QUIC, Layer 4 vs Layer 7 load balancing, and multi-tier caching.
+- [Module 2: Data Architecture](02-data-architecture/README.md): SQL vs NoSQL storage engines, LSM vs B-Trees, sharding, PACELC theorem, Kafka, and streaming.
+- [Module 3: Resilience and Scale](03-system-resilience-scale/README.md): Microservice scalability patterns, fault tolerance, circuit breakers, SLAs, SLIs, and SLOs.
+- [Module 4: TPM Execution Framework](04-tpm-execution-framework/README.md): ADR templates, worked design reviews, back-of-the-envelope math, and zero-downtime migrations.
+- [Module 5: Real-World Case Studies](05-real-world-case-studies/README.md): 5 production architectures with formal ADRs, FMEA failure matrices, API contracts, and RACI plans.
+- [Glossary](GLOSSARY.md): 50+ standardized distributed systems definitions, latency tiers, and reference formulas.
+
+## Full Consolidated Bundle
+- [Full Course Text (Prompt-Ready)](llms-full.txt): Complete consolidated handbook text (~45k tokens) optimized for direct context ingestion into Claude, ChatGPT, Gemini, or NotebookLM.

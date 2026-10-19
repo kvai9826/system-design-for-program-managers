@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Architectural Decision Records (ADRs)**: Integrated Michael Nygard ADR format into case studies and core modules, detailing context, alternatives, trade-offs, and failure consequences.
 - **Failure Mode and Effects Analysis (FMEA)**: Added comprehensive edge-case failure matrices covering partial partitions, retry storms, duplicate events, and reconciliation policies across all case studies.
 - **Module Learning Roadmaps**: Created structured entry-point `README.md` files for all five curriculum modules with role-based fast tracks and deep mastery paths.
+- **LLM Ingestion Standards and Tooling**: Implemented `llms.txt` and consolidated prompt-ready bundle `llms-full.txt` (~45k tokens) with `scripts/build_llm_bundle.py` for one-command ingestion into ChatGPT, Claude, Gemini, and NotebookLM.
 
 ### Changed
 - **Capacity Planning Recalculations**:

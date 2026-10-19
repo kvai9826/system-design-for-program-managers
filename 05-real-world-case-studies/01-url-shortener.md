@@ -1,168 +1,306 @@
-# Case Study 1: Designing a Global URL Shortener (TinyURL / Bitly)
+# Case Study 1: Global URL Shortener (TinyURL / Bitly)
 
-A URL shortener converts long URLs into compact aliases (e.g. `https://tiny.url/x7k9p2`) and redirects users to the original destination. This classic problem tests a technical program manager's ability to handle high read-to-write ratios, evaluate hashing versus pre-generation, design caching layers, and plan capacity over multi-year horizons.
+[Home](../README.md) > [Module 5: Real-World Case Studies](./README.md) > **Case Study 5.1: URL Shortener**
 
 ---
 
-## 1. Requirements and Capacity Estimation
+## 1. Problem Statement and Scope
+
+A URL shortener converts long URLs into compact aliases (e.g. `https://tiny.url/x7k9p2`) and redirects incoming client requests to the original destination. While conceptually straightforward, operating this service at internet scale requires handling massive read-to-write skews, sub-15ms redirection latencies, global high availability, and phishing abuse prevention.
+
+### In-Scope Functional Capabilities
+- Shortening long URLs into unique 7-character Base62 aliases.
+- Redirecting incoming requests with HTTP 302/307 status codes.
+- Custom alias support (e.g. `https://tiny.url/tpm-handbook`).
+- URL expiration via configurable Time-to-Live (TTL).
+- Click telemetry tracking (click count, referrer, timestamp, geographic country).
+
+### Out-of-Scope (Explicit Boundaries)
+- Private enterprise vanity domains (custom DNS CNAME onboarding).
+- Deep link routing into native iOS/Android mobile apps (Universal Links).
+- Real-time user billing and paid subscription tiers.
+
+---
+
+## 2. Requirements and SLAs
 
 ### Functional Requirements
-1. **URL Shortening**: Given a long URL, generate a unique, short alias.
-2. **Redirection**: Given a short alias, redirect the user to the original destination.
-3. **Custom Aliases**: Optional user-defined short aliases (e.g. `https://tiny.url/tpm-guide`).
-4. **Expiration & Analytics**: URLs expire after a default TTL; track click counts and geographic referrers.
+1. **Alias Generation**: System accepts a valid URL and returns a unique 7-character alias.
+2. **Redirection**: System redirects incoming alias requests to the original destination in under 15ms.
+3. **Collision Resistance**: System must never assign the same alias to two different long URLs while active.
 
-### Non-Functional Requirements
-- **High Availability**: 99.99% uptime (redirections must not fail).
-- **Ultra-Low Latency**: Redirection lookup under 15ms.
-- **Read-Heavy System**: Projected 10:1 to 100:1 read-to-write ratio.
+### Non-Functional Requirements & SLAs
+- **Availability Target**: **99.99% Uptime** (Maximum allowable downtime: 52.6 minutes/year).
+- **Latency SLO**: p99 redirection latency $< 15\text{ms}$; p99 alias creation $< 100\text{ms}$.
+- **Durability**: 99.999999999% (11 nines) durability for URL mapping records.
+- **Read-to-Write Ratio**: High read-heavy workload estimated between 50:1 and 100:1.
 
-### Back-of-the-Envelope Capacity Math
+---
+
+## 3. Capacity Planning and Calculations
 
 ```mermaid
 flowchart LR
-    W[500M New URLs / Month<br/>Write QPS ≈ 200] --> Ratio[100:1 Read-to-Write Ratio]
-    Ratio --> R[50 Billion Clicks / Month<br/>Read QPS ≈ 20,000]
+    W[500M New URLs / Month<br/>Average Write QPS: 193<br/>Peak Write QPS: 386] --> Ratio[100:1 Read-to-Write Ratio]
+    Ratio --> R[50 Billion Clicks / Month<br/>Average Read QPS: 19,290<br/>Peak Read QPS: 38,580]
 
-    classDef math fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class W,Ratio,R math;
+    classDef mathStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class W,Ratio,R mathStyle;
 ```
 
-1. **Traffic Sizing**:
-   - New URLs shortened: **500 Million per month**.
-   - Write QPS: $500,000,000 / (2.5 \times 10^6\text{ sec}) \approx 200\text{ writes/sec}$. Peak: $400\text{ writes/sec}$.
-   - Redirection clicks (100:1 ratio): **50 Billion per month**.
-   - Read QPS: $50,000,000,000 / (2.5 \times 10^6\text{ sec}) \approx 20,000\text{ reads/sec}$. Peak: $40,000\text{ reads/sec}$.
-2. **Storage Sizing (5 Years)**:
-   - Total URLs over 5 years: $500\text{M/month} \times 12 \times 5 = 30\text{ Billion records}$.
-   - Average record size (Short Key 7 bytes, Long URL 500 bytes, Created At 8 bytes, User ID 8 bytes) $\approx 600\text{ bytes}$.
-   - Total 5-Year Storage: $30\text{ Billion} \times 600\text{ bytes} \approx 18\text{ Terabytes}$.
-3. **Cache Memory Sizing (80/20 Rule)**:
-   - Daily reads: $50\text{B} / 30 \approx 1.66\text{ Billion reads/day}$.
-   - Top 20% hot URLs: $1.66\text{B} \times 0.20 = 332\text{ Million URLs}$.
-   - Memory needed: $332\text{M} \times 600\text{ bytes} \approx 200\text{ GB RAM}$. A modest 2-node Redis cluster easily holds this.
+### Traffic Estimates
+- **New URLs Created**: 500 Million per month.
+- **Average Write QPS**:
+  $$\text{Write QPS} = \frac{500,000,000}{2,592,000\text{ seconds/month}} \approx \mathbf{193\text{ writes/sec}}$$
+- **Peak Write QPS (2x Multiplier)**: $193 \times 2 \approx \mathbf{386\text{ writes/sec}}$.
+- **Redirection Traffic (100:1 Ratio)**: 50 Billion clicks per month.
+- **Average Read QPS**:
+  $$\text{Read QPS} = \frac{50,000,000,000}{2,592,000\text{ seconds/month}} \approx \mathbf{19,290\text{ reads/sec}}$$
+- **Peak Read QPS (2x Multiplier)**: $19,290 \times 2 \approx \mathbf{38,580\text{ reads/sec}}$.
+
+### Storage Sizing (5-Year Horizon)
+- Total URLs created over 5 years: $500\text{M/month} \times 12 \times 5 = \mathbf{30\text{ Billion records}}$.
+- Data record breakdown:
+  - `short_key`: 7 bytes (ASCII)
+  - `original_url`: 500 bytes (average)
+  - `user_id`: 16 bytes (UUID)
+  - `created_at`: 8 bytes (Unix timestamp)
+  - `expires_at`: 8 bytes (Unix timestamp)
+  - Structural metadata and BSON/DynamoDB attribute overhead: $\approx 60\text{ bytes}$
+  - **Total Record Size**: $\approx \mathbf{600\text{ bytes}}$.
+- **Total Raw 5-Year Database Storage**:
+  $$\text{Storage} = 30\text{ Billion} \times 600\text{ bytes} = 18,000,000,000\text{ KB} = \mathbf{18\text{ Terabytes}}$$
+- Accounting for 3x multi-AZ replication and secondary index storage ($1.5\times$ factor):
+  $$\text{Provisioned Storage} = 18\text{ TB} \times 3 \times 1.5 \approx \mathbf{81\text{ Terabytes}}$$
+
+### Network Bandwidth Sizing
+- **Read Ingress**: Negligible (HTTP GET headers $\approx 500\text{ bytes}$ per click $\times 19,290\text{ QPS} \approx 9.6\text{ MB/s}$).
+- **Read Egress (HTTP 302 Header)**:
+  $$\text{Egress Bandwidth} = 19,290\text{ QPS} \times 600\text{ bytes} \approx 11.57\text{ MB/s} = \mathbf{92.6\text{ Mbps}}$$
+  $$\text{Peak Read Egress} = 92.6\text{ Mbps} \times 2 \approx \mathbf{185.2\text{ Mbps}}$$
+
+### Cache Working Set Sizing (Zipfian Power-Law Distribution)
+Clicks on shortened links follow a steep power-law (Zipfian) distribution: a small subset of viral links accounts for the vast majority of clicks.
+- Rather than assuming 20% of all monthly clicks are distinct URLs, real-world telemetry shows that approximately **10 Million unique URLs** represent the active working set across any 24-hour window.
+- **Raw Cache Data**: $10,000,000\text{ keys} \times 600\text{ bytes} = 6\text{ GB}$.
+- **Redis Overhead**: Each key incurs $\approx 80\text{ bytes}$ (`robj`, `dictEntry`, jemalloc alignment):
+  $$\text{Overhead} = 10,000,000 \times 80\text{ bytes} = 800\text{ MB}$$
+- **Total Working Set with 30% Headroom**:
+  $$\text{Cache RAM} = (6\text{ GB} + 0.8\text{ GB}) \times 1.30 \approx \mathbf{8.84\text{ GB RAM}}$$
+- **Provisioned Cache Architecture**: A 3-shard Redis Cluster, each shard configured with 1 Primary (8 GB) and 1 Replica in an alternate Availability Zone (Total: 6 nodes of `cache.r6g.large`).
+
+### Sensitivity Analysis
+| Variable | Baseline | High Stress | Impact on Architecture |
+| :--- | :--- | :--- | :--- |
+| **Read Ratio** | 100:1 (38.5k peak QPS) | 500:1 (193k peak QPS) | Read tier requires scale-out of Redis cluster to 10 shards and CDN edge caching |
+| **Average URL Length** | 500 bytes | 2,048 bytes (Max RFC) | Storage jumps from 18 TB to 61 TB; cache memory requirement jumps from 8.8 GB to 27 GB |
 
 ---
 
-## 2. High-Level Architecture
+## 4. End-to-End System Architecture
 
 ```mermaid
 flowchart TD
-    User[End User Browser] --> DNS[Global DNS / Route53]
-    DNS --> CDN[Cloudflare / CloudFront CDN]
-    CDN --> LB[Layer 7 Load Balancer]
+    User[Client Browser / Mobile App] --> DNS[Route 53 Latency-Based DNS]
+    DNS --> CDN[Cloudflare Edge CDN]
+    CDN -->|Cache Hit: Return 302| User
+    CDN -->|Cache Miss: Forward Request| ALB[AWS Application Load Balancer]
     
-    LB --> WebApp[URL Shortening & Redirection API Fleet]
+    ALB --> WebFleet[URL Redirection & Shortening Service Pods]
     
-    WebApp <--> Cache[(Redis Distributed Cache Cluster: Hot URLs)]
-    WebApp <--> KGS[Key Generation Service]
-    WebApp --> PrimaryDB[(NoSQL / Relational DB: DynamoDB / PostgreSQL)]
+    WebFleet <--> RedisCluster[(Redis Cluster: Hot URL Mappings)]
+    WebFleet <--> KGS[Key Generation Service]
+    WebFleet --> PrimaryDB[(NoSQL Store: Amazon DynamoDB)]
     
-    WebApp --> AnalyticsKafka[(Kafka Analytics Topic)]
-    AnalyticsKafka --> AnalyticsWorker[Click Analytics Ingestion]
-    AnalyticsWorker --> AnalyticsDB[(ClickHouse / Snowflake OLAP)]
+    WebFleet --> KafkaClickStream[(Kafka: clickstream.events)]
+    KafkaClickStream --> AnalyticsWorker[Click Analytics Workers]
+    AnalyticsWorker --> ClickHouseDB[(OLAP DB: ClickHouse)]
 
-    classDef cdn fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    classDef db fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class CDN,Cache cdn;
-    class PrimaryDB,AnalyticsDB db;
+    classDef cdnStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    classDef dbStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    classDef appStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class CDN,RedisCluster cdnStyle;
+    class PrimaryDB,ClickHouseDB dbStyle;
+    class WebFleet,KGS,AnalyticsWorker appStyle;
 ```
 
 ---
 
-## 3. Short Key Generation: The Core Technical Decision
+## 5. API Contracts and Core Data Model
 
-How do we generate a unique 7-character string?
+### API Contracts
 
-Using **Base62 encoding** (`[a-z, A-Z, 0-9]`):
-- A 7-character string provides $62^7 \approx 3.52\text{ Trillion}$ unique URLs, far exceeding our 30 Billion requirement.
+#### 1. Create Shortened URL
+- **Endpoint**: `POST /api/v1/urls`
+- **Headers**:
+  - `Content-Type: application/json`
+  - `Idempotency-Key: <UUID>` (Client-generated UUID to prevent duplicate aliases on retry)
+- **Request Payload**:
+  ```json
+  {
+    "original_url": "https://www.example.com/products/electronics/item-98214?ref=campaign",
+    "custom_alias": "spring-sale-2026",
+    "ttl_days": 90
+  }
+  ```
+- **Response Payload (HTTP 201 Created)**:
+  ```json
+  {
+    "short_code": "spring-sale-2026",
+    "short_url": "https://tiny.url/spring-sale-2026",
+    "original_url": "https://www.example.com/products/electronics/item-98214?ref=campaign",
+    "created_at": "2026-10-19T14:00:00Z",
+    "expires_at": "2027-01-17T14:00:00Z"
+  }
+  ```
+- **Error Codes**: `400 Bad Request` (Invalid URL), `409 Conflict` (Custom alias already in use), `429 Too Many Requests`.
 
-### Approach Comparison
+#### 2. Redirect Short URL
+- **Endpoint**: `GET /{short_code}`
+- **Response**: `HTTP 302 Found` (or `307 Temporary Redirect`)
+- **Headers**:
+  - `Location: https://www.example.com/products/...`
+  - `Cache-Control: private, max-age=300`
+
+### Core Data Model (Amazon DynamoDB)
+
+Table Name: `url_mappings`
+
+| Attribute Name | Data Type | Key Type | Description |
+| :--- | :--- | :--- | :--- |
+| `short_code` | String | **Partition Key (PK)** | Unique 7-character Base62 string (e.g. `"x7k9p2"`) |
+| `original_url` | String | Standard | Destination long URL (max 2,048 chars) |
+| `account_id` | String | Standard | Creator account UUID |
+| `created_at` | Number | Standard | Unix epoch timestamp in seconds |
+| `expires_at` | Number | **TTL Attribute** | Unix epoch timestamp. DynamoDB native TTL auto-deletes expired records |
+| `click_count` | Number | Standard | Coarse counter updated asynchronously |
+
+Global Secondary Index (GSI): `account_id-created_at-index`
+- **PK**: `account_id`
+- **Sort Key (SK)**: `created_at`
+- **Purpose**: Enables rapid retrieval of all links created by a specific user account.
+
+---
+
+## 6. Architectural Decision Records (ADRs) and Alternatives
 
 ```mermaid
 flowchart TD
-    subgraph HashApproach [Approach 1: Hash of Long URL + MD5/SHA256]
-        H1[Hash Long URL] --> H2[Take first 7 Base62 characters]
-        H2 --> H3{Collision in DB?}
-        H3 -->|Yes| H4[Append Salt & Re-hash: High Latency!]
-        H3 -->|No| H5[Save to DB]
+    subgraph Alt1 [Alternative 1: Hash of Long URL + Collision Loop]
+        A1[Compute SHA-256 of URL] --> A2[Encode in Base62 & Truncate to 7 Chars]
+        A2 --> A3{Check DB: Collision?}
+        A3 -->|Yes| A4[Append Salt & Hash Again: High Latency Penalty]
+        A3 -->|No| A5[Commit to DB]
     end
 
-    subgraph KGSApproach [Approach 2: Key Generation Service - Recommended]
-        K1[Standby Worker pre-generates random 7-char Base62 keys]
-        K1 --> K2[(Key Store: Used vs Unused Tables)]
-        K2 --> K3[Load batches of keys into KGS Memory]
-        K3 --> K4[App Server requests pre-minted unique key in O 1 time]
+    subgraph Alt2 [Alternative 2: Centralized Key Generation Service - Recommended]
+        B1[Offline Worker pre-generates unique 7-char random strings]
+        B1 --> B2[(Key Depot Database: Unused vs Used Tables)]
+        B2 --> B3[KGS Servers load 50,000 keys into local memory]
+        B3 --> B4[App Server requests pre-minted unique key in O 1 time]
     end
 
-    classDef red fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    classDef green fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class HashApproach red;
-    class KGSApproach green;
+    classDef badStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    classDef goodStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class Alt1 badStyle;
+    class Alt2 goodStyle;
 ```
 
-- **Why KGS Wins**: The Key Generation Service eliminates runtime collisions and expensive database lookup retries. Keys are pre-minted, validated for profanity, and handed out instantaneously ($O(1)$) to app servers in memory chunks.
+### Architectural Comparison Matrix
+
+| Criteria | Alternative 1: SHA-256 Hash + Retry | Alternative 2: Key Generation Service (KGS) | Alternative 3: Distributed ID + Base62 |
+| :--- | :--- | :--- | :--- |
+| **Write Latency** | Variable (15ms to 250ms during collision retries) | **Sub-millisecond** ($O(1)$ in-memory assignment) | Fast (1ms to 5ms via Snowflake generator) |
+| **Collision Probability** | Moderate (birthday paradox increases as table fills) | **Zero runtime collisions** (pre-deduplicated) | Zero (Snowflake IDs are globally unique) |
+| **Predictability** | Poor (collision loops consume unpredictable DB IOPS) | **Deterministic** | Deterministic |
+| **Security Risk** | Low | Low | Sequential Snowflake IDs allow scrapers to guess URLs |
+| **Operational Complexity** | Low (no extra services) | Moderate (requires managing KGS fleet & ZooKeeper) | Moderate (requires clock-drift synchronized daemons) |
+
+### Decision Outcome
+**Adopt Alternative 2 (Key Generation Service)**. KGS provides predictable, sub-millisecond write latency, completely decouples key generation from user web requests, and guarantees zero runtime database collision checks.
+
+### Boundary Conditions: When KGS is No Longer Appropriate
+If the application shifts from public web shortening to an internal microservice generating short IDs for billions of ephemeral background tasks, the operational overhead of KGS exceeds its value; a local 64-bit distributed Snowflake generator becomes the superior choice.
 
 ---
 
-## 4. Redirection Mechanics: HTTP 301 vs HTTP 302
+## 7. Failure-Mode and Recovery Matrix (FMEA)
 
-When a user visits `https://tiny.url/x7k9p2`, the server issues an HTTP redirect. Choosing between 301 and 302 is a classic architectural trade-off:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as User Browser
-    participant CDN as Edge CDN / Gateway
-    participant API as URL App Server
-    participant Cache as Redis Cache
-
-    Client->>CDN: GET /x7k9p2
-    CDN->>API: Forward request (if not cached at edge)
-    API->>Cache: GET x7k9p2
-    Cache-->>API: Return "https://destination.com/long-page"
-    API-->>Client: HTTP 302 Found (Location: https://destination.com/long-page)
-    Client->>Client: Browser redirects to long destination URL
-```
-
-### The 301 vs 302 Trade-off Matrix
-
-| Status Code | Meaning | Browser Behavior | Impact on Analytics | Origin Server Load |
+| Failure Scenario | Detection Mechanism | Immediate System Behavior | Automated Recovery | Manual Runbook Action |
 | :--- | :--- | :--- | :--- | :--- |
-| **HTTP 301** | Moved Permanently | Browser caches redirect locally forever | **Fails to capture analytics**: Subsequent clicks bypass server completely | Lowest server load |
-| **HTTP 302** | Found (Temporary) | Browser checks back with server on every click | **Accurate analytics**: Every single click hits edge/server for tracking | Higher server load |
-
-> **Recommendation**: Use **HTTP 302 Found** (or HTTP 307 Temporary Redirect) so the platform can accurately track click metrics, geographic referrers, and device types.
-
----
-
-## 5. Data Modeling
-
-Given 30 Billion records and high read volume with simple primary key lookups, a distributed Key-Value / Document store like **AWS DynamoDB** or **Cassandra** is ideal.
-
-### DynamoDB Table Schema: `url_mapping`
-- **Partition Key (PK)**: `short_key` (String, e.g. `"x7k9p2"`)
-- `original_url`: String (e.g. `"https://example.com/very/long/path"`)
-- `user_id`: String (e.g. `"usr_98124"`)
-- `created_at`: Unix Timestamp
-- `expires_at`: Unix Timestamp (DynamoDB native TTL automatically deletes expired items)
+| **Primary Redis Node Crash** | Sentinel / Cluster heartbeat timeout (> 3s) | Read requests temporarily fall back to read replica or DynamoDB | Redis Cluster promotes replica to primary in under 5 seconds | Verify replica promotion in Datadog; check replication lag |
+| **KGS Server Instance Crash** | Kubernetes liveness probe failure | In-memory keys assigned to that pod (up to 50k keys) remain marked `UNUSED` or are lost | Kubernetes provisions replacement pod; pulls new unallocated key range | If unallocated keys run low (< 5M), trigger manual batch generation script |
+| **DynamoDB Throttle Spike** | CloudWatch `ReadThrottleEvents` metric alarm | Client experiences p99 latency spike to 200ms | Exponential backoff with jitter on app client; Redis absorbs 95% reads | Increase provisioned read capacity units (RCU) or enable auto-scaling |
+| **Analytics Kafka Topic Stalled** | Consumer lag metric exceeds 100,000 messages | Redirections continue normally (click tracking is decoupled) | Kafka consumer auto-scaling group adds 5 worker pods | Inspect ClickHouse ingestion cluster for slow batch inserts |
 
 ---
 
-## 6. TPM Execution Lens: Risks and Mitigation
+## 8. Security, Abuse Prevention, and Governance
 
-| Program Risk | Impact | Engineering Mitigation |
-| :--- | :--- | :--- |
-| **Malicious Links & Phishing** | Brand damage, security blacklisting by Google Safe Browsing | Asynchronous security scanner checks target URLs against Google Safe Browsing API before activating alias |
-| **KGS Server Crash** | Multiple servers assigning duplicate keys | KGS allocates exclusive key ranges (e.g. Server 1 gets keys 1-1,000,000; Server 2 gets 1,000,001-2,000,000) using Apache ZooKeeper |
-| **Analytics Processing Lag** | Click count dashboards display stale data | Decouple click logging to Apache Kafka; process asynchronously without blocking the redirect thread |
+1. **Malicious Link & Phishing Detection**:
+   - Newly submitted URLs are asynchronously scanned against the Google Safe Browsing API and PhishTank before the alias is activated.
+   - High-risk domains (e.g. newly registered TLDs) are placed in a quarantined state pending heuristic analysis.
+2. **Rate Limiting at Edge**:
+   - Enforce a limit of 100 URL shortening creations per IP per hour using Redis token buckets at the API Gateway.
+   - Public redirection endpoints are rate-limited to 1,000 requests/minute per source IP to prevent automated scrapers from enumerating short codes.
+3. **Data Privacy**:
+   - IP addresses collected in click telemetry are anonymized (last octet stripped) to maintain strict compliance with GDPR regulations.
 
 ---
 
-## 7. TPM Review Checklist
+## 9. Observability and Monitoring Thresholds
 
-- [ ] Has the team confirmed HTTP 302 vs 301 redirection based on business analytics requirements?
-- [ ] Is the Key Generation Service isolated to prevent runtime collision delays?
-- [ ] Are expired records automatically purged using native database TTL features?
-- [ ] Is an abuse detection pipeline included to detect malware and phishing campaigns?
-- [ ] Is the Redis cache sized to absorb 80% of daily read volume?
+| Metric Name | Telemetry Type | Target SLA / Baseline | P1 Critical Alert Threshold |
+| :--- | :--- | :--- | :--- |
+| **Redirection Latency (p99)** | Metric (Histogram) | $< 15\text{ms}$ | $> 50\text{ms}$ for 3 consecutive minutes |
+| **HTTP 5xx Error Rate** | Metric (Counter) | $< 0.01\%$ | $> 0.1\%$ over 1-minute window |
+| **Cache Hit Ratio (CHR)** | Metric (Gauge) | $> 90\%$ | $< 80\%$ (Indicates cache eviction storm) |
+| **KGS Unallocated Key Pool** | Metric (Gauge) | $> 50,000,000$ | $< 5,000,000$ (Trigger batch key generator) |
+
+---
+
+## 10. Migration, Launch Gates, and TPM Execution Plan
+
+### Phased Rollout Schedule
+
+```mermaid
+flowchart TD
+    Phase1[Phase 1: Shadow Launch<br/>Mirror 5% live read traffic to validate KGS latency] --> Phase2[Phase 2: Internal Canary<br/>Route internal employees to new shortening engine]
+    Phase2 --> Phase3[Phase 3: Public Canary<br/>5% public traffic routed via weighted Route 53 DNS]
+    Phase3 --> Phase4[Phase 4: Full Cutover<br/>100% traffic on new architecture; decommission legacy]
+
+    classDef pStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class Phase1,Phase2,Phase3,Phase4 pStyle;
+```
+
+### RACI Matrix
+
+| Workstream Deliverable | Engineering Lead | Senior TPM | Security Architect | SRE / Ops |
+| :--- | :--- | :--- | :--- | :--- |
+| **KGS Engine Implementation** | **Accountable** | Consulted | Informed | Informed |
+| **Phishing Abuse Scanner** | Responsible | Consulted | **Accountable** | Informed |
+| **Capacity Sizing & Cost Approval** | Consulted | **Accountable** | Informed | Responsible |
+| **Canary Traffic Rollout Execution** | Responsible | **Accountable** | Informed | Responsible |
+
+### Automated Rollback Triggers
+- Automatic rollback occurs within 60 seconds if HTTP 5xx error rate exceeds 0.2% or p99 latency exceeds 60ms during any canary stage.
+
+---
+
+## 11. Practice System Design Questions and Model Answers
+
+### Question 1: Why use HTTP 302 Found instead of HTTP 301 Moved Permanently?
+**Model Answer**:
+HTTP 301 tells client browsers to cache the redirection permanently on local disk. While this minimizes origin server load, subsequent clicks from the same user device bypass our infrastructure completely, making it impossible to capture click counts, referrer data, or geolocation analytics. HTTP 302 (or HTTP 307) forces the client to query our edge/origin on every click, preserving real-time analytics integrity.
+
+### Question 2: How would you prevent a distributed race condition if two KGS instances pull the same key range?
+**Model Answer**:
+We isolate key ranges in the database using optimistic concurrency control or distributed consensus (Apache ZooKeeper / etcd). When a KGS pod requests a new block of 50,000 keys, it executes an atomic conditional update: `UPDATE key_depot SET status = 'ASSIGNED', assigned_to = 'kgs_pod_04' WHERE range_id = 12 AND status = 'AVAILABLE'`. If two pods attempt to claim range 12 simultaneously, one fails and retries range 13.
+
+---
+
+## 12. Primary Sources and Further Reading
+
+- *Designing Data-Intensive Applications* by Martin Kleppmann (O'Reilly Media, 2017) - Chapter 7: Transactions & Distributed Locking.
+- **Base62 Encoding Standard**: RFC 4648 (The Base16, Base32, and Base64 Data Encodings).
+- **Amazon DynamoDB Architecture Guide**: Best Practices for Designing Partition Keys (AWS Documentation).

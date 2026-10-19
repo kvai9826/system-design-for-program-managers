@@ -1,6 +1,10 @@
 # Module 3.2: Fault Tolerance, Resilience, and Rate Limiting
 
-In large distributed systems, hardware failures, network timeouts, and software bugs are not anomalies: they are guaranteed daily occurrences. Resilience is the ability of a system to gracefully degrade, isolate failures, and self-heal without cascading into a catastrophic global outage.
+[Home](../README.md) > [Module 3: Resilience & Scale](./README.md) > **Chapter 3.2: Fault Tolerance & Rate Limiting**
+
+---
+
+In large distributed systems, hardware failures, network timeouts, and software bugs are not anomalies: they are guaranteed daily occurrences. Resilience is the ability of a system to gracefully degrade, isolate failures, and self-heal without cascading into a catastrophic platform outage.
 
 ---
 
@@ -14,10 +18,10 @@ flowchart TD
     Step1 --> Step2[Service B connection pool exhausts, memory spikes]
     Step2 --> Step3[Service A calls to Service B time out, Service A retries aggressively]
     Step3 --> Step4[Retry storm multiplies traffic by 3x on failing Service B]
-    Step4 --> Crash[Complete Platform Blackout]
+    Step4 --> Crash[Complete Platform Outage]
 
-    classDef fail fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    class Issue,Step1,Step2,Step3,Step4,Crash fail;
+    classDef failStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    class Issue,Step1,Step2,Step3,Step4,Crash failStyle;
 ```
 
 ---
@@ -62,8 +66,8 @@ flowchart TD
     Attempt3 --> Wait3
     Wait3 --> DLQ[Max Retries Exceeded: Drop or Send to DLQ]
 
-    classDef retry fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class Attempt1,Wait1,Attempt2,Wait2,Attempt3,Wait3,DLQ retry;
+    classDef retryStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class Attempt1,Wait1,Attempt2,Wait2,Attempt3,Wait3,DLQ retryStyle;
 ```
 
 ### Why "Full Jitter" is Essential
@@ -89,8 +93,8 @@ graph TD
     FWC -->|Feature| FWC_Desc[Simple reset at fixed time; vulnerable to 2x boundary bursts.]
     SWC -->|Feature| SWC_Desc[Accurate rolling window, memory efficient via Redis hashes.]
 
-    classDef algo fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class TB,LB,FWC,SWC algo;
+    classDef algoStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class TB,LB,FWC,SWC algoStyle;
 ```
 
 ### Algorithm Comparison Table
@@ -123,10 +127,10 @@ flowchart TD
         Note over PoolB: PDF pool maxes out; Auth and Payment remain 100% healthy.
     end
 
-    classDef danger fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    classDef safe fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class NonIsolated danger;
-    class BulkheadIsolated safe;
+    classDef dangerStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    classDef safeStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class NonIsolated dangerStyle;
+    class BulkheadIsolated safeStyle;
 ```
 
 ---
@@ -171,3 +175,12 @@ When leading operational readiness and architecture reviews:
 - [ ] Are mutating endpoints (checkout, funds transfer) protected by distributed idempotency keys?
 - [ ] Are critical microservices isolated using bulkhead patterns for thread pools and database connections?
 - [ ] Has the organization conducted Chaos Engineering drills (Game Days) to validate failover behaviors under simulated stress?
+
+---
+
+## 8. Primary Sources and Further Reading
+
+- *Release It!: Design and Deploy Production-Ready Software* (2nd Edition) by Michael T. Nygard (Pragmatic Bookshelf, 2018) - Chapters on Circuit Breakers, Bulkheads, and Timeouts.
+- **Backoff and Jitter**: *Exponential Backoff And Jitter* by Marc Brooker (AWS Architecture Blog, 2015).
+- **Stripe Idempotency Architecture**: *Designing robust and predictable APIs with idempotency* (Stripe Engineering Blog, 2017).
+- *Chaos Engineering: System Resiliency in Practice* by Casey Rosenthal and Nora Jones (O'Reilly Media, 2020).

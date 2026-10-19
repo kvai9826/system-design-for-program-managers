@@ -1,5 +1,9 @@
 # Module 1.2: Load Balancing and API Gateways
 
+[Home](../README.md) > [Module 1: Foundations](./README.md) > **Chapter 1.2: Load Balancing & API Gateways**
+
+---
+
 Load balancers and API gateways form the front door of modern distributed architectures. They ensure high availability, prevent server saturation, enforce security policies, and route requests efficiently across fleet instances. For technical program managers, these components represent critical single points of failure (SPOFs) and cost drivers.
 
 ---
@@ -19,22 +23,22 @@ flowchart TD
     L7A -->|Inspect Path /users| SvcB[Users Microservice]
     L7B -->|Inspect Path /payments| SvcC[Payments Microservice]
 
-    classDef lb fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    classDef svc fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
-    class L4,L7A,L7B lb;
-    class SvcA,SvcB,SvcC svc;
+    classDef lbStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    classDef svcStyle fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
+    class L4,L7A,L7B lbStyle;
+    class SvcA,SvcB,SvcC svcStyle;
 ```
 
 ### Deep-Dive Comparison
 
-| Dimension | Layer 4 (Transport Layer) | Layer 7 (Application Layer) |
-| :--- | :--- | :--- |
-| **Routing Criteria** | Source IP, Source Port, Dest IP, Dest Port, TCP/UDP protocol | HTTP URI, HTTP Headers, Cookies, Request Body, Content-Type |
-| **Payload Inspection** | No inspection; forwards raw packets directly | Full inspection; terminates TCP and parses HTTP payload |
-| **Performance** | Extremely high throughput, ultra-low latency, low CPU overhead | Higher CPU and memory consumption per request |
-| **SSL/TLS Termination** | Passes encrypted packets or decrypts without HTTP inspection | Full SSL/TLS termination and re-encryption to backends |
-| **Smart Routing** | Cannot route based on URL path or session cookies | Supports canary traffic splitting, path routing, header filtering |
-| **Technologies** | AWS NLB (Network Load Balancer), HAProxy (TCP mode), IPVS, F5 | AWS ALB, NGINX, Envoy, Traefik, Kong, HAProxy (HTTP mode) |
+| Dimension | Layer 4 (Transport Layer) | Layer 7 (Application Layer) | Architectural Guidance |
+| :--- | :--- | :--- | :--- |
+| **Routing Criteria** | Source IP, Source Port, Dest IP, Dest Port, TCP/UDP protocol | HTTP URI, HTTP Headers, Cookies, Request Body, Content-Type | L4 for raw protocol speed; L7 for path/header routing |
+| **Payload Inspection** | No inspection; forwards raw packets directly | Full inspection; terminates TCP and parses HTTP payload | L7 allows security scanning; L4 preserves end-to-end privacy |
+| **Performance** | Ultra-high throughput, sub-millisecond latency, minimal CPU | Higher CPU and memory consumption per request | Size L7 clusters with 3x compute buffer compared to L4 |
+| **SSL/TLS Termination** | Passes encrypted packets or decrypts without HTTP inspection | Full SSL/TLS termination and re-encryption to backends | Centralize TLS at L7 to offload CPU from backend pods |
+| **Smart Routing** | Cannot route based on URL path or session cookies | Supports canary traffic splitting, path routing, header filtering | Essential for microservice service discovery |
+| **Representative Technologies** | AWS NLB (Network Load Balancer), HAProxy (TCP mode), IPVS, Maglev | AWS ALB, NGINX, Envoy Proxy, Traefik, Kong, HAProxy (HTTP mode) | Combine L4 at edge with L7 for microservice ingress |
 
 ---
 
@@ -56,19 +60,19 @@ graph LR
     IPH -->|Best For| U3[Sticky sessions without shared session storage]
     CH -->|Best For| U4[Distributed caching tiers with dynamic nodes]
 
-    classDef algo fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class RR,LC,IPH,CH algo;
+    classDef algoStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class RR,LC,IPH,CH algoStyle;
 ```
 
 1. **Round Robin**:
    - Cycles through servers sequentially.
-   - *Limitation*: Assumes all servers have identical capacity and all requests require equal processing time.
+   - *Limitation*: Assumes all servers have identical capacity and all requests require equal processing time. Can cause queue pile-ups on slower instances.
 2. **Weighted Round Robin**:
-   - Assigns a numeric weight reflecting hardware capacity (e.g. 8 cores gets 2x requests of 4 cores).
+   - Assigns a numeric weight reflecting hardware capacity (e.g. an 8-core node receives 2x the requests of a 4-core node).
 3. **Least Connections**:
    - Routes to the server with fewest active concurrent connections. Essential for variable-duration transactions like report generation or video encoding.
 4. **Consistent Hashing**:
-   - Maps requests and servers to a virtual ring. Minimizes cache misses when backends scale up or down.
+   - Maps requests and servers to a virtual ring. Minimizes cache misses when backends scale up or down dynamically.
 
 ---
 
@@ -94,18 +98,18 @@ flowchart TD
         LB2 --> BackendsAA
     end
 
-    classDef topo fill:#f8fafc,stroke:#64748b,stroke-width:1px;
-    class TopologyAP,TopologyAA topo;
+    classDef topoStyle fill:#f8fafc,stroke:#64748b,stroke-width:1px;
+    class TopologyAP,TopologyAA topoStyle;
 ```
 
 ### Architectural Trade-offs
 
 - **Active-Passive (Failover via VRRP / Keepalived)**:
   - Simple to implement; standby node consumes idle compute cost.
-  - Failover takes 1 to 5 seconds while virtual IP address migrates.
+  - Failover takes 1 to 5 seconds while virtual IP address migrates, which may cause brief connection drops for active TCP streams.
 - **Active-Active (BGP Anycast / DNS Multi-A Records)**:
   - Full resource utilization; traffic is load-balanced across all gateways simultaneously.
-  - Requires automated health-checking to withdraw BGP routes instantly if a node crashes.
+  - Requires automated health-checking to withdraw BGP routes instantly if a node crashes to avoid routing traffic to a dead host.
 
 ---
 
@@ -119,8 +123,8 @@ flowchart LR
     
     subgraph GatewayResponsibilities [Gateway Cross-Cutting Concerns]
         direction TB
-        R1[Authentication & Authorization - JWT Verification]
-        R2[Rate Limiting & Throttling - Token Bucket]
+        R1[Authentication & Authorization: JWT Verification]
+        R2[Rate Limiting & Throttling: Token Bucket]
         R3[SSL / TLS Termination]
         R4[Path Routing & Canary Traffic Splitting]
         R5[Telemetry, Logging & Distributed Tracing]
@@ -132,8 +136,8 @@ flowchart LR
     GW -->|gRPC / Internal HTTP| Svc2[Payment Service]
     GW -->|gRPC / Internal HTTP| Svc3[Notification Service]
 
-    classDef gw fill:#eff6ff,stroke:#1d4ed8,stroke-width:2px;
-    class GW gw;
+    classDef gwStyle fill:#eff6ff,stroke:#1d4ed8,stroke-width:2px;
+    class GW gwStyle;
 ```
 
 ### Core API Gateway Responsibilities
@@ -153,7 +157,7 @@ flowchart LR
 
 ## 5. Reverse Proxy vs API Gateway vs Ingress Controller
 
-Technical program managers often hear these terms used interchangeably. Here is the distinction:
+Technical program managers often hear these terms used interchangeably. Here is the architectural distinction:
 
 | Component | Primary Scope | Typical Technology |
 | :--- | :--- | :--- |
@@ -177,7 +181,7 @@ sequenceDiagram
     LB->>S1: GET /healthz
     S1-->>LB: 200 OK (Response time: 15ms)
     LB->>S2: GET /healthz
-    Note over S2: Process hanging / Database dead
+    Note over S2: Process hanging / Database connection pool dead
     S2-->>LB: 503 Service Unavailable (or Timeout after 2000ms)
     Note over LB: Mark Server 2 Unhealthy after 3 consecutive failures
     LB->>LB: Remove Server 2 from active routing pool
@@ -200,4 +204,13 @@ When scoping and reviewing ingress architecture programs:
 - [ ] Is the API Gateway protected against distributed denial of service (DDoS) via rate limiting?
 - [ ] Is SSL termination centralized to save backend compute cycles?
 - [ ] Are correlation IDs generated at the gateway and forwarded through all downstream hops?
-- [ ] Does the gateway support zero-downtime canary deployments (traffic splitting by percentage or header)?
+- [ ] Does the gateway support graceful connection-drained canary deployments (traffic splitting by percentage or header)?
+
+---
+
+## 8. Primary Sources and Further Reading
+
+- **Google Maglev Paper**: *Maglev: A Fast and Reliable Software Network Load Balancer* by Eisenbud et al. (USENIX NSDI, 2016).
+- **Envoy Proxy Architecture**: Official Envoy Documentation (https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/arch_overview).
+- **HAProxy Configuration Guide**: *HAProxy Architecture and Load Balancing Fundamentals* (HAProxy Technologies).
+- *Building Microservices: Designing Fine-Grained Systems* (2nd Edition) by Sam Newman (O'Reilly Media, 2021) - Chapter 5: Integration.

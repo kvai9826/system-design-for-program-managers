@@ -1,5 +1,9 @@
 # Module 1.3: Distributed Caching Strategies
 
+[Home](../README.md) > [Module 1: Foundations](./README.md) > **Chapter 1.3: Caching Strategies**
+
+---
+
 Caching is one of the most effective techniques to reduce latency, protect downstream databases from traffic spikes, and optimize cloud infrastructure costs. For technical program managers, understanding cache design patterns, invalidation strategies, and failure modes prevents costly production outages.
 
 ---
@@ -17,8 +21,8 @@ flowchart TD
     App -->|5. Distributed Cache| DistCache[(Distributed L2 Cache: Redis / Memcached Cluster)]
     DistCache -->|6. Storage Engine Cache| DB[(Primary Database: Buffer Pool / Page Cache)]
 
-    classDef cacheLayer fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class CDN,GW,DistCache cacheLayer;
+    classDef cacheStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class CDN,GW,DistCache cacheStyle;
 ```
 
 ---
@@ -31,8 +35,8 @@ The choice of caching pattern defines the consistency contract between the appli
 flowchart TD
     subgraph ReadPatterns [Read Caching Strategies]
         direction LR
-        CA[Cache-Aside / Lazy Loading: App manages cache and DB]
-        RT[Read-Through: App talks only to Cache, Cache fetches DB]
+        CA[Cache-Aside / Lazy Loading: App coordinates cache and DB]
+        RT[Read-Through: App queries Cache, Cache loads DB on miss]
     end
 
     subgraph WritePatterns [Write Caching Strategies]
@@ -61,7 +65,7 @@ sequenceDiagram
 
     App->>Cache: 1. GET key
     alt Cache Hit
-        Cache-->>App: 2. Return cached value
+        Cache-->>App: 2. Return cached value (Sub-millisecond)
     else Cache Miss
         Cache-->>App: 2. Return null (miss)
         App->>DB: 3. Query primary database
@@ -71,16 +75,16 @@ sequenceDiagram
     end
 ```
 
-- **Pros**: Only requested data is cached (memory efficient); cache failure does not crash the system (falls back to DB).
-- **Cons**: High latency on cache miss (3 network hops); potential stale data if database is updated directly without cache invalidation.
+- **Pros**: Only requested data is cached (memory efficient); cache failure does not crash the system (gracefully degrades to direct database queries).
+- **Cons**: High latency penalty on cache miss (3 network round-trips); potential stale data if records are updated in the database directly without cache invalidation.
 
 ### 2. Write-Through vs Write-Behind (Write-Back)
 
 | Dimension | Write-Through | Write-Behind (Write-Back) | Write-Around |
 | :--- | :--- | :--- | :--- |
 | **Data Flow** | App writes to Cache; Cache writes to DB synchronously before returning success | App writes to Cache; Cache writes to DB asynchronously in batches | App writes directly to DB; Cache is bypassed and populated on next read |
-| **Write Latency** | High (waits for both Cache and DB write to finish) | Ultra-low (returns immediately after memory write) | Normal DB write latency |
-| **Consistency** | High consistency between cache and DB | Eventual consistency; risk of data loss if cache node crashes before flush | Cache may hold stale data unless explicitly invalidated |
+| **Write Latency** | Higher (waits for both memory cache and disk DB write to commit) | Ultra-low (returns immediately after memory write confirms) | Standard database disk write latency |
+| **Consistency** | High consistency between cache and primary store | Eventual consistency; data loss risk if cache crashes before flush | Cache holds stale data unless explicitly invalidated on write |
 | **Ideal For** | Financial balances, user permissions, security tokens | Heavy write workloads, clickstream tracking, IoT telemetry | Infrequently read logs, large batch file uploads |
 
 ---
@@ -159,14 +163,20 @@ flowchart LR
 
 ---
 
-## 6. Back-of-the-Envelope Cache Sizing (The 80/20 Rule)
+## 6. Back-of-the-Envelope Cache Sizing (The Correct 80/20 Working Set Formula)
 
-In system design reviews, TPMs must estimate memory requirements:
+In system design reviews, TPMs must estimate memory requirements using distinct items rather than raw request counts:
 
-1. **Apply Pareto Principle (80/20 Rule)**: 20% of items generate 80% of read traffic. You only need to cache that hot 20%.
+1. **The Pareto Principle (80/20 Rule)**: 20% of the **distinct active catalog items** generate 80% of read traffic. You only need to size the fast cache tier for that hot 20%.
 2. **Formula**:
-   $$\text{Daily Total Reads} \times 0.20 \times \text{Average Object Size} = \text{Target Cache Working Set}$$
-3. **Memory Headroom Rule**: Add 25% to 30% buffer for metadata, indexing structures, and Redis engine overhead.
+   $$\text{Working Set Memory} = (\text{Total Unique Active Items} \times 0.20) \times (\text{Average Record Size} + \text{Key Overhead})$$
+3. **Accounting for Redis Memory Overhead**:
+   - Each key in Redis incurs approximately 60 to 100 bytes of structural overhead (`dictEntry`, `robj` header, jemalloc allocation alignment).
+   - *Example*: Sizing a cache for 10 Million unique active user profiles (average profile size = 1 KB):
+     $$\text{Hot Working Set} = 10,000,000 \times 0.20 = 2,000,000\text{ profiles}$$
+     $$\text{Raw Data} = 2,000,000 \times 1,000\text{ bytes} = 2\text{ GB}$$
+     $$\text{Key Overhead} = 2,000,000 \times 80\text{ bytes} = 160\text{ MB}$$
+     $$\text{Memory with 30% Headroom Buffer} = (2\text{ GB} + 0.16\text{ GB}) \times 1.30 \approx 2.8\text{ GB RAM}$$
 
 ---
 
@@ -174,8 +184,18 @@ In system design reviews, TPMs must estimate memory requirements:
 
 When validating caching designs in your program:
 
-- [ ] Is there an explicit invalidation strategy for mutable data?
-- [ ] Are all cache keys set with a Time-To-Live (TTL) to prevent unbounded memory growth?
+- [ ] Is there an explicit invalidation strategy for mutable data (TTL vs event-driven invalidation via CDC)?
+- [ ] Are all cache keys set with a Time-To-Live (TTL) to prevent unbounded memory leaks?
 - [ ] Are TTLs randomized with jitter to eliminate cache avalanche risks?
 - [ ] What happens to application SLAs when the cache cluster restarts or fails?
 - [ ] Is cache hit ratio (CHR) tracked as a critical service-level indicator (SLI)? Target CHR: 95%+ for read-heavy tiers.
+- [ ] Has memory overhead for allocator fragmentation and hash table buckets been included in cluster capacity sizing?
+
+---
+
+## 8. Primary Sources and Further Reading
+
+- **Scaling Memcache at Facebook**: *Scaling Memcache at Facebook* by Rajesh Nishtala et al. (USENIX NSDI, 2013).
+- **Redis In-Depth**: *Redis: The Definitive Guide* and Redis Official Memory Optimization Documentation (https://redis.io/docs/management/optimization/memory-optimization/).
+- **Probabilistic Cache Regeneration**: *Optimal Probabilistic Cache Stampede Prevention* by Vattani, Chierichetti, and Lowenstein (VLDB, 2015).
+- *Database Internals: A Deep Dive into How Distributed Data Systems Work* by Alex Petrov (O'Reilly Media, 2019) - Chapter 12: Distributed Caching.

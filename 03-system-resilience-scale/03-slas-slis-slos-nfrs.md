@@ -1,5 +1,9 @@
 # Module 3.3: High Availability, NFRs, and Disaster Recovery
 
+[Home](../README.md) > [Module 3: Resilience & Scale](./README.md) > **Chapter 3.3: SLAs, SLOs, SLIs & Disaster Recovery**
+
+---
+
 Non-Functional Requirements (NFRs) define system qualities rather than specific business features: how fast, how reliable, how secure, and how recoverable a system is. For technical program managers, mastering Service Level Objectives (SLOs), High Availability math, and Disaster Recovery (DR) models is essential for managing executive expectations and preventing contractual breach penalties.
 
 ---
@@ -45,7 +49,7 @@ Each additional "nine" of availability reduces tolerable downtime by a factor of
 | **99% (Two Nines)** | 3.65 days | 7.31 hours | 14.4 minutes | Single instance with scheduled backups; manual recovery |
 | **99.9% (Three Nines)** | 8.76 hours | 43.8 minutes | 1.44 minutes | Multi-AZ redundant instances with automated failover behind load balancer |
 | **99.99% (Four Nines)** | 52.6 minutes | 4.38 minutes | 8.64 seconds | Fully automated multi-AZ active-active tier, read replicas, automated circuit breaking |
-| **99.999% (Five Nines)** | 5.26 minutes | 26.3 seconds | 0.86 seconds | Multi-region active-active deployment, global anycast, zero-downtime automated rollouts |
+| **99.999% (Five Nines)** | 5.26 minutes | 26.3 seconds | 0.86 seconds | Multi-region active-active deployment, global anycast, automated rollouts with connection draining |
 
 ```mermaid
 flowchart LR
@@ -54,8 +58,8 @@ flowchart LR
     N3 --> N4[99.99% - $$$$]
     N4 --> N5[99.999% - $$$$$$$$]
 
-    classDef cStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class N2,N3,N4,N5 cStyle;
+    classDef costStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class N2,N3,N4,N5 costStyle;
 ```
 
 ---
@@ -73,7 +77,7 @@ flowchart TD
     subgraph ErrorBudgetPolicy [TPM Governance: Error Budget Policy]
         EB[Monthly Error Budget Remaining] --> Check{Is Error Budget > 0%?}
         Check -->|Yes: Healthy| Green[Deploy new features, run A/B experiments, move fast]
-        Check -->|No: Exhausted| Red[Feature Freeze! All engineering sprints pivot to tech debt, reliability, and bug fixes]
+        Check -->|No: Exhausted| Red[Feature Freeze! All engineering sprints pivot to reliability and tech debt]
     end
 
     classDef gStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
@@ -90,7 +94,7 @@ flowchart TD
 
 ## 4. Disaster Recovery: RPO vs RTO
 
-In the event of a catastrophic regional datacenter failure (e.g. hurricane, widespread power grid collapse, fiber severance), two metrics define the recovery strategy:
+In the event of a catastrophic regional datacenter failure (e.g. power grid collapse or network severance), two metrics define the recovery strategy:
 
 ```mermaid
 flowchart LR
@@ -100,8 +104,8 @@ flowchart LR
     Point1 -->|Measures Data Loss| D1[How many minutes/hours of uncommitted data was lost?]
     Point2 -->|Measures Downtime| D2[How long until the system is restored and serving traffic?]
 
-    classDef dr fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class Point1,Point2,D1,D2 dr;
+    classDef drStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class Point1,Point2,D1,D2 drStyle;
 ```
 
 1. **RPO (Recovery Point Objective)**:
@@ -129,14 +133,14 @@ flowchart TD
 
     S1 --> S2 --> S3 --> S4
 
-    classDef s1 fill:#f8fafc,stroke:#94a3b8,stroke-width:1px;
-    classDef s2 fill:#fef3c7,stroke:#f59e0b,stroke-width:1px;
-    classDef s3 fill:#dbeafe,stroke:#3b82f6,stroke-width:1px;
-    classDef s4 fill:#dcfce7,stroke:#10b981,stroke-width:2px;
-    class S1 s1;
-    class S2 s2;
-    class S3 s3;
-    class S4 s4;
+    classDef s1Style fill:#f8fafc,stroke:#94a3b8,stroke-width:1px;
+    classDef s2Style fill:#fef3c7,stroke:#f59e0b,stroke-width:1px;
+    classDef s3Style fill:#dbeafe,stroke:#3b82f6,stroke-width:1px;
+    classDef s4Style fill:#dcfce7,stroke:#10b981,stroke-width:2px;
+    class S1 s1Style;
+    class S2 s2Style;
+    class S3 s3Style;
+    class S4 s4Style;
 ```
 
 ### Strategy Breakdown
@@ -166,3 +170,12 @@ When establishing operational standards and NFR baselines:
 - [ ] Are RPO and RTO targets explicitly documented for tier-1 critical systems?
 - [ ] Has the disaster recovery failover process been tested in production within the last 12 months?
 - [ ] Did the team calculate the financial ROI before committing to a 99.99% or 99.999% availability goal?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- *Site Reliability Engineering: How Google Runs Production Systems* by Betsy Beyer, Chris Jones, Jennifer Petoff, and Niall Richard Murphy (O'Reilly Media, 2016) - Chapter 3: Embracing Risk & Chapter 4: Service Level Objectives.
+- *The Site Reliability Workbook: Practical Ways to Implement SRE* by Betsy Beyer et al. (O'Reilly Media, 2018) - Chapter 2: Implementing SLOs.
+- **AWS Reliability Pillar**: *AWS Well-Architected Framework: Reliability Pillar Whitepaper* (Amazon Web Services, 2023).
+- **Disaster Recovery Guidance**: *Disaster Recovery of Workloads on AWS: Recovery in the Cloud* (AWS Whitepaper, 2022).

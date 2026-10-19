@@ -1,5 +1,9 @@
 # Module 2.4: Asynchronous Messaging and Event Streaming
 
+[Home](../README.md) > [Module 2: Data Architecture](./README.md) > **Chapter 2.4: Messaging & Event Streaming**
+
+---
+
 Synchronous HTTP calls couple distributed microservices in time and availability: if Service B is slow or down, Service A fails as well. Asynchronous messaging decouples systems, absorbs traffic bursts, and enables event-driven architectures. Technical program managers must distinguish between traditional message queues and distributed event streaming platforms.
 
 ---
@@ -12,7 +16,7 @@ Asynchronous communication provides three foundational benefits for large-scale 
 flowchart LR
     subgraph Benefits [Asynchronous Architecture Benefits]
         B1[Temporal Decoupling: Producer does not wait for Consumer]
-        B2[Traffic Leveling: Buffer absorbs bursty peak spikes without crashing backends]
+        B2[Traffic Leveling: Buffer absorbs bursty peak spikes]
         B3[Failure Isolation: Consumer outage does not break producer API]
     end
 
@@ -44,22 +48,22 @@ flowchart TD
         Note over Log: Messages are retained for days/weeks. Multiple groups read independently.
     end
 
-    classDef tq fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    classDef es fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class TraditionalQueue tq;
-    class EventStream es;
+    classDef tqStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    classDef esStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class TraditionalQueue tqStyle;
+    class EventStream esStyle;
 ```
 
 ### Direct Technology Comparison
 
-| Dimension | Message Queues (RabbitMQ, SQS) | Event Streams (Kafka, Kinesis) |
-| :--- | :--- | :--- |
-| **Data Retention** | Ephemeral: Messages deleted upon consumer acknowledgement | Persistent: Retained on disk by duration (e.g. 7 days) or size limit |
-| **Message Ordering** | Strict per-queue (or best-effort in standard SQS) | Strict total order within a single partition |
-| **Consumption Model** | Point-to-point work distribution: one consumer consumes each message | Publish-Subscribe log: multiple independent consumer groups read at their own pace |
-| **Replayability** | Cannot rewind and replay past messages | Consumers can reset offsets and replay historic events |
-| **Peak Throughput** | Thousands of messages per second | Millions of events per second via sequential disk I/O and batching |
-| **Best Used For** | Asynchronous task execution, long-running batch jobs, simple workflows | Real-time event streams, clickstream tracking, financial ledgers, event sourcing |
+| Dimension | Message Queues (RabbitMQ, SQS) | Event Streams (Kafka, Kinesis) | Architectural Decision Criteria |
+| :--- | :--- | :--- | :--- |
+| **Data Retention** | Ephemeral: Messages deleted upon consumer acknowledgement | Persistent: Retained on disk by duration (e.g. 7 days) or size limit | Choose Kafka if events need replaying for analytics or auditing |
+| **Message Ordering** | Strict per-queue (or best-effort in standard SQS) | Strict total order within a single partition | Choose Kafka for strict per-entity chronological ordering |
+| **Consumption Model** | Point-to-point work distribution: one consumer consumes each message | Publish-Subscribe log: multiple independent consumer groups read at own pace | Choose SQS for simple task workers; Kafka for multiple domain subscribers |
+| **Replayability** | Cannot rewind and replay past messages | Consumers can reset offsets and replay historic events | Kafka enables backfilling new microservices with past events |
+| **Peak Throughput** | Thousands of messages per second | Millions of events per second via sequential disk I/O and batching | Kafka for extreme high-volume telemetry and clickstreams |
+| **Best Used For** | Asynchronous task execution, long-running batch jobs, simple workflows | Real-time event streams, clickstream tracking, financial ledgers, event sourcing | Evaluate operational maintenance overhead vs scale requirements |
 
 ---
 
@@ -78,7 +82,7 @@ flowchart LR
 ```
 
 ### The Pragmatic Reality: At-Least-Once + Idempotency
-Achieving true end-to-end "exactly-once" delivery across multiple network hops is computationally expensive and complex. 
+Achieving true end-to-end "exactly-once" delivery across multiple network boundaries is computationally expensive and complex. 
 
 The industry gold standard for high-throughput distributed systems is:
 
@@ -139,10 +143,10 @@ flowchart TD
     P1 --> C2
     P2 --> C3
 
-    classDef part fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    classDef pod fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class P0,P1,P2 part;
-    class C1,C2,C3 pod;
+    classDef partStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    classDef podStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class P0,P1,P2 partStyle;
+    class C1,C2,C3 podStyle;
 ```
 
 ### Partition Sizing and Scaling Rules
@@ -161,3 +165,12 @@ When leading programs involving asynchronous messaging infrastructure:
 - [ ] Is consumer lag tracked as a tier-1 operational metric with automated alerts?
 - [ ] Has the team sized topic partitions appropriately to match projected peak consumer parallelism?
 - [ ] What is the data retention policy (e.g. 7 days vs 30 days) and how does disk growth impact cloud storage budgets?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- **Apache Kafka Paper**: *Kafka: a Distributed Messaging System for Log Processing* by Jay Kreps, Neha Narkhede, and Jun Rao (NetDB, 2011).
+- **The Log Architecture**: *The Log: What every software engineer should know about real-time data's unifying abstraction* by Jay Kreps (LinkedIn Engineering Blog, 2013).
+- **Enterprise Integration Patterns**: *Enterprise Integration Patterns: Designing, Building, and Deploying Messaging Solutions* by Gregor Hohpe and Bobby Woolf (Addison-Wesley, 2003).
+- *Designing Data-Intensive Applications* by Martin Kleppmann (O'Reilly Media, 2017) - Chapter 11: Stream Processing.

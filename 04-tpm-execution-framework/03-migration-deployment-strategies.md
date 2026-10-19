@@ -1,5 +1,9 @@
 # Module 4.3: Migration and Safe Deployment Strategies
 
+[Home](../README.md) > [Module 4: TPM Execution Framework](./README.md) > **Chapter 4.3: Migration & Deployment Strategies**
+
+---
+
 Large-scale distributed systems cannot be paused for a weekend maintenance window to deploy new features or replace legacy monoliths. Technical program managers must master zero-downtime migration patterns, progressive rollouts, and blast-radius containment strategies to modernize architectures safely under full production load.
 
 ---
@@ -53,7 +57,7 @@ flowchart TD
         direction TB
         RouterBG[Router / Load Balancer] -->|100% Active Traffic| GreenEnv[Green Environment: v1.0 Live]
         RouterBG -.->|Zero Traffic: Staging| BlueEnv[Blue Environment: v2.0 Ready]
-        Note over RouterBG: Instant Switch: Router flips 100% traffic to Blue!
+        Note over RouterBG: Router switches 100% traffic to Blue once verified!
     end
 
     subgraph Canary [Canary Deployment]
@@ -63,20 +67,20 @@ flowchart TD
         Note over CanaryEnv: Telemetry verified for 30 mins before scaling to 100%
     end
 
-    classDef bg fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    classDef cn fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class BlueGreen bg;
-    class Canary cn;
+    classDef bgStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    classDef cnStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class BlueGreen bgStyle;
+    class Canary cnStyle;
 ```
 
 ### Detailed Strategy Comparison
 
-| Strategy | How It Works | Downtime | Cost Overhead | Rollback Speed | Best Suited For |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Rolling Deployment** | Replaces old pods with new pods incrementally (e.g. 20% at a time) | Zero downtime | Zero additional compute cost | Slow (requires rolling backward) | Standard stateless microservice releases |
-| **Blue-Green Deployment** | Provisions a full duplicate environment (Blue). Flips router from Green to Blue in one step | Zero downtime | High (requires 2x hardware capacity during rollout) | Instant (flip router back to Green) | High-risk releases, database schema changes |
-| **Canary Deployment** | Routes a tiny fraction (e.g. 1% to 5%) of live traffic to the new version to observe real-world errors | Zero downtime | Minimal (1 to 2 canary instances) | Instant (drain canary route) | High-scale consumer platforms (Google, Meta, Netflix) |
-| **Shadow / Dark Launch** | Duplicates incoming production requests to the new service asynchronously without returning result | Zero user impact | Medium (requires duplicate compute capacity) | N/A (no live user impact) | Performance benchmarking, major algorithmic refactors |
+| Strategy | How It Works | Downtime Profile | Cost Overhead | Rollback Speed | Operational Failure Modes | Best Suited For |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Rolling Deployment** | Replaces old pods with new pods incrementally (e.g. 20% at a time) | Near-zero downtime (conditional on connection draining) | Zero additional compute cost | Slow (requires rolling backward pod by pod) | **Connection Drops**: Occurs if `terminationGracePeriodSeconds` is too short or if DB schema is not backward compatible | Standard stateless microservice releases |
+| **Blue-Green Deployment** | Provisions duplicate environment (Blue). Flips router from Green to Blue in one step | Near-zero downtime (sub-second router flip) | High (requires 2x hardware capacity during rollout) | Fast (flip router back to Green) | **State Drift**: Shared databases may diverge if v1 and v2 write incompatible schemas simultaneously | High-risk releases, major framework upgrades |
+| **Canary Deployment** | Routes small fraction (e.g. 1% to 5%) of live traffic to new version to observe real-world metrics | Near-zero downtime | Minimal (1 to 2 canary instances) | Fast (drain canary routing rule) | **Session Contention**: Users bouncing between v1 and v2 experiencing inconsistent UI state | High-scale consumer platforms (Google, Meta, Netflix) |
+| **Shadow / Dark Launch** | Duplicates production requests to new service asynchronously without returning result to user | Zero user-visible downtime | Medium (requires duplicate compute capacity) | N/A (no live user impact) | **Side-Effect Duplication**: If shadow service inadvertently sends real emails or charges credit cards | Algorithmic rewrites, pricing engine overhauls |
 
 ---
 
@@ -98,7 +102,7 @@ sequenceDiagram
     GW--)Shadow: 2. Duplicate Request (Asynchronous Fire-and-Forget)
     
     Prod-->>GW: Return Result: $49.99
-    GW-->>Client: 200 OK: $49.99 (Latency unaffected!)
+    GW-->>Client: 200 OK: $49.99 (User latency unaffected)
 
     Shadow-->>Compare: Shadow Result: $49.98
     Prod-->>Compare: Production Result: $49.99
@@ -124,8 +128,8 @@ flowchart LR
     CheckFlag -->|User in 10% Beta Cohort| V2_On
     CheckFlag -->|General Public| V1_Default[Show Old Experience]
 
-    classDef flag fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class CheckFlag,V2_On,V1_Default flag;
+    classDef flagStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class CheckFlag,V2_On,V1_Default flagStyle;
 ```
 
 ### TPM Benefits of Feature Flags
@@ -153,10 +157,10 @@ flowchart TD
 
     Check1 & Check2 & Check3 -->|All Green| Advance[Advance Traffic to Next Stage: 25%]
 
-    classDef fail fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    classDef pass fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class AutoAbort fail;
-    class Advance pass;
+    classDef failStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    classDef passStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class AutoAbort failStyle;
+    class Advance passStyle;
 ```
 
 ---
@@ -171,3 +175,12 @@ When building migration roadmaps and deployment plans:
 - [ ] Are feature flags guarded by fallback defaults if the configuration service fails?
 - [ ] Has the cutover runbook been peer-reviewed with named owners for each step?
 - [ ] Did the team test backward compatibility of database schemas with both old and new code versions?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- **Strangler Fig Pattern**: *Strangler Fig Application* by Martin Fowler (martinfowler.com/bliki/StranglerFigApplication.html, 2004).
+- *Continuous Delivery: Reliable Software Releases through Build, Test, and Deployment Automation* by Jez Humble and David Farley (Addison-Wesley, 2010).
+- **Canary Releases**: *CanaryRelease* by Martin Fowler (martinfowler.com/bliki/CanaryRelease.html, 2014).
+- **Google SRE Release Engineering**: *Site Reliability Engineering* (O'Reilly, 2016) - Chapter 8: Release Engineering.

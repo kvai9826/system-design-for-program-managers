@@ -1,5 +1,9 @@
 # Module 4.1: The TPM System Design Framework
 
+[Home](../README.md) > [Module 4: TPM Execution Framework](./README.md) > **Chapter 4.1: The TPM System Design Framework**
+
+---
+
 System design interviews and architecture design reviews evaluate Technical Program Managers differently than Software Engineers. While software engineers are assessed on code constructs, concurrency primitives, and algorithmic efficiency, TPMs are evaluated on **architectural breadth, trade-off evaluation, cross-functional risk mitigation, capacity planning, and project delivery roadmaps**.
 
 ---
@@ -26,10 +30,10 @@ flowchart LR
         T4[Cross-team dependencies & migration milestones]
     end
 
-    classDef swe fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    classDef tpm fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class SWELens swe;
-    class TPMLens tpm;
+    classDef sweStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    classDef tpmStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class SWELens sweStyle;
+    class TPMLens tpmStyle;
 ```
 
 ---
@@ -112,7 +116,61 @@ This stage distinguishes strong TPM candidates from engineers:
 
 ---
 
-## 5. Common Anti-Patterns to Avoid
+## 5. Architectural Decision Records (ADRs)
+
+In enterprise programs, architectural choices must be documented to prevent endless re-litigation of technical debates. A Technical Program Manager owns the ADR process:
+
+### Standard ADR Template (Michael Nygard Format)
+
+```markdown
+# ADR-004: Adoption of Apache Kafka for Asynchronous Order Event Streaming
+
+## Status
+Accepted (Date: 2026-03-15)
+
+## Context
+Our monolithic ordering service handles 15,000 orders/minute. Post-order workflows (inventory decrement, fraud analysis, invoice PDF generation, customer email notification) are currently executed via synchronous HTTP RPC. Downstream latency spikes in the invoice generation service are causing timeout cascades and order dropouts.
+
+## Decision
+We will decouple post-order fulfillment workflows using Apache Kafka. The checkout API will commit the order record to the primary database, publish an `OrderPlaced` event to Kafka topic `orders.v1`, and return HTTP 201 immediately to the client.
+
+## Consequences
+- **Positive**: Web request latency drops from 850ms to 65ms. Downstream outages no longer block checkout.
+- **Negative**: Downstream consumers require idempotency keys to handle duplicate events. Introduces operational overhead of managing Kafka broker clusters and ZooKeeper/KRaft.
+
+## Compliance & Monitoring
+Order event lag must be monitored in Datadog with an alert threshold of lag > 5,000 messages.
+```
+
+---
+
+## 6. Worked Design Review Examples: How a Strong TPM Challenges Proposals
+
+During architectural review boards, a TPM must evaluate proposals critically. Below are three real-world examples:
+
+### Example 1: E-Commerce Inventory Reservation Proposal
+- **Proposed Architecture**: Checkout service makes synchronous HTTP REST calls to the Inventory Service, which runs `SELECT stock FROM inventory WHERE item_id = ? FOR UPDATE` on a single PostgreSQL database.
+- **Questions a Strong TPM Must Ask**:
+  1. *Throughput Ceiling*: A relational row-level lock on PostgreSQL maxes out at ~2,000 writes/sec. During a flash sale of 50,000 QPS, how will this avoid connection pool exhaustion?
+  2. *Blast Radius*: If the inventory service experiences a latency spike, how do we prevent checkout threads from getting exhausted and dropping cart views?
+  3. *Idempotency*: If the client times out after 1,000ms while the database write actually succeeded, what prevents duplicate stock reservation on retry?
+
+### Example 2: IoT Fleet Telemetry Ingestion Proposal
+- **Proposed Architecture**: 250,000 connected vehicles ping telemetry every 5 seconds directly to an API Gateway, which inserts rows into a standard relational database with multiple secondary indexes on timestamp and vehicle ID.
+- **Questions a Strong TPM Must Ask**:
+  1. *Storage Engine Suitability*: Ingestion rate is 50,000 writes/sec. A B-Tree storage engine requires random disk page writes for secondary indexes. Why are we not using an LSM-Tree write-optimized engine (Cassandra or ScyllaDB) or time-series database?
+  2. *Buffer Layer*: If the database undergoes a failover maintenance window for 30 seconds, where do the 1.5 million in-flight vehicle pings get buffered to prevent permanent data loss?
+  3. *Retention and Cold Storage*: At 50,000 writes/sec, the database accumulates 4.3 Billion rows per day. What is the automated partitioning and cold storage tiering policy to prevent disk saturation?
+
+### Example 3: Global User Feed Comments Proposal
+- **Proposed Architecture**: Multi-region active-active relational database deployment where users in London and Tokyo write comments to local read-write database instances, replicating synchronously across the globe.
+- **Questions a Strong TPM Must Ask**:
+  1. *Physical Latency Bounds*: Synchronous consensus across Tokyo and London takes at least 150ms per write due to speed-of-light networking limits. Are users willing to wait 250ms+ just to post a casual comment?
+  2. *CAP Theorem Alignment*: User comments are inherently tolerant of eventual consistency. Why are we paying 5x cloud infrastructure costs for synchronous cross-region consensus instead of an AP asynchronous replication model?
+
+---
+
+## 7. Common Anti-Patterns to Avoid
 
 | Anti-Pattern | Description | Correction |
 | :--- | :--- | :--- |
@@ -124,7 +182,7 @@ This stage distinguishes strong TPM candidates from engineers:
 
 ---
 
-## 6. TPM Review Checklist
+## 8. TPM Review Checklist
 
 Before presenting an architecture to leadership or interview panels:
 
@@ -133,3 +191,11 @@ Before presenting an architecture to leadership or interview panels:
 - [ ] Have I proactively identified the top single points of failure (SPOFs)?
 - [ ] Did I outline the rollout phases, cross-team dependencies, and rollback triggers?
 - [ ] Am I prepared to defend the cost implications of high availability choices?
+
+---
+
+## 9. Primary Sources and Further Reading
+
+- *Software Architecture: The Hard Parts: Modern Input for Objectives, Granularity, and Coupling* by Neal Ford, Mark Richards, Pramod Sadalage, and Zhamak Dehghani (O'Reilly Media, 2021).
+- **Architecture Decision Records**: *Documenting Architecture Decisions* by Michael Nygard (cognitect.com, 2011).
+- *Staff Engineer: Leadership Beyond the Management Track* by Will Larson (Stripe Press, 2021) - Chapters on Technical Strategy and Architecture Reviews.

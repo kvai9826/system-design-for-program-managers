@@ -1,5 +1,9 @@
 # Module 3.1: Architectural Scalability Patterns
 
+[Home](../README.md) > [Module 3: Resilience & Scale](./README.md) > **Chapter 3.1: Architectural Scalability Patterns**
+
+---
+
 Scalability describes a system's capacity to handle increased workload without compromising performance or linearly exploding operational costs. For technical program managers, scaling is not just an engineering problem; it dictates cloud budget predictability, headcount planning, and customer SLA compliance during business growth.
 
 ---
@@ -20,21 +24,21 @@ flowchart TD
         H1[Single Server: 4 CPU / 16GB] -->|Add Identical Nodes Behind LB| H2[Cluster of 20 Identical Nodes]
     end
 
-    classDef sUp fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    classDef sOut fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class ScaleUp sUp;
-    class ScaleOut sOut;
+    classDef sUpStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    classDef sOutStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class ScaleUp sUpStyle;
+    class ScaleOut sOutStyle;
 ```
 
 ### Comprehensive Comparison
 
-| Metric | Vertical Scaling (Scale-Up) | Horizontal Scaling (Scale-Out) |
-| :--- | :--- | :--- |
-| **Hardware Limit** | Hard ceiling: finite physical RAM and CPU sockets per motherboard | Theoretically infinite: add commodity virtual machines or containers |
-| **Downtime Impact** | Often requires machine reboot or maintenance window to resize | Zero-downtime rolling additions and removals |
-| **Failure Domain** | Single point of failure: if the box dies, everything goes down | High fault tolerance: loss of one node is absorbed by the cluster |
-| **Architectural Complexity** | Zero code changes: runs the exact same software on larger specs | Requires stateless code, distributed locking, and network routing |
-| **Cost Profile** | Non-linear cost curve: high-end hardware becomes exponentially expensive | Linear cost curve: pay for commodity cloud instances dynamically |
+| Metric | Vertical Scaling (Scale-Up) | Horizontal Scaling (Scale-Out) | Architectural Trade-off |
+| :--- | :--- | :--- | :--- |
+| **Hardware Limit** | Hard ceiling: finite physical RAM and CPU sockets per motherboard | Elastic: add commodity virtual machines or container pods | Horizontal scales indefinitely; vertical hits hardware caps |
+| **Downtime Impact** | Often requires machine reboot or maintenance window to resize | Rolling additions and removals without downtime | Horizontal provides high release agility |
+| **Failure Domain** | Single point of failure: hardware death collapses service | High fault tolerance: loss of one node is absorbed by cluster | Horizontal eliminates single points of failure |
+| **Architectural Complexity** | Zero code changes: runs identical monolithic code | Requires stateless code, distributed sessions, and routing | Vertical is faster initially; horizontal scales long-term |
+| **Cost Curve** | Exponential cost curve for specialized multi-terabyte RAM boxes | Linear cost curve: pay for commodity cloud compute dynamically | Horizontal allows dynamic down-scaling during off-peak hours |
 
 ---
 
@@ -47,7 +51,7 @@ flowchart TD
     subgraph StatefulAntiPattern [Stateful Anti-Pattern: Sticky Sessions Required]
         ClientA[User A] --> LBA[Load Balancer]
         LBA -->|Session in Node 1 Memory| Node1[App Server 1]
-        Note over Node1: If Server 1 crashes, User A is logged out!
+        Note over Node1: If Server 1 crashes, User A session is lost!
     end
 
     subgraph StatelessPattern [Stateless Best Practice: Externalized State]
@@ -57,10 +61,10 @@ flowchart TD
         AnyNode <--> SharedStore[(Shared Object Store S3: File Uploads)]
     end
 
-    classDef bad fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    classDef good fill:#ecfdf5,stroke:#059669,stroke-width:1px;
-    class StatefulAntiPattern bad;
-    class StatelessPattern good;
+    classDef badStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    classDef goodStyle fill:#ecfdf5,stroke:#059669,stroke-width:1px;
+    class StatefulAntiPattern badStyle;
+    class StatelessPattern goodStyle;
 ```
 
 ### Eliminating State from Application Nodes
@@ -118,13 +122,13 @@ sequenceDiagram
     API->>Q: Enqueue Job {user_id: 42, report: "2024"}
     API-->>Client: 202 Accepted {job_id: "job_987", status: "PENDING"}
     
-    Note over Client: Web thread freed in 25ms! User sees progress bar.
+    Note over Client: Web thread freed in 25ms. User views progress indicator.
 
     Q->>Worker: Consume Job
     Worker->>Worker: Generate 500-page PDF (takes 12 seconds)
     Worker->>Storage: Upload report.pdf
     Worker->>API: Publish JobComplete webhook / push notification
-    API-->>Client: WebSocket Notification: Report Ready for Download!
+    API-->>Client: WebSocket Notification: Report Ready for Download
 ```
 
 ---
@@ -158,3 +162,12 @@ When auditing scalability readiness for key launches:
 - [ ] Are database read-heavy workloads segregated using read replicas or CQRS patterns?
 - [ ] What is the projected cloud infrastructure cost at 2x, 5x, and 10x current transaction volumes?
 - [ ] Has load testing verified that horizontal scaling does not shift the bottleneck to a shared downstream database connection pool?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- *The Art of Scalability: Scalable Web Architecture, Processes, and Organizations for the Modern Enterprise* (2nd Edition) by Martin L. Abbott and Michael T. Fisher (Addison-Wesley, 2015).
+- **CQRS Pattern**: *CQRS* by Martin Fowler (martinfowler.com/bliki/CQRS.html, 2011).
+- **Kubernetes Autoscaling**: *Horizontal Pod Autoscaler Walkthrough* (Kubernetes.io Documentation).
+- *Designing Distributed Systems* by Brendan Burns (O'Reilly Media, 2018) - Chapter 4: Replicated Load-Balanced Services.

@@ -1,5 +1,9 @@
 # Module 4.4: Observability, Security, and Governance
 
+[Home](../README.md) > [Module 4: TPM Execution Framework](./README.md) > **Chapter 4.4: Observability, Security & Governance**
+
+---
+
 Building a scalable system is only half the battle; operating it reliably, securing user data, and maintaining regulatory compliance are what protect an organization from reputational damage and catastrophic financial fines. For technical program managers, observability and security governance are primary operational deliverables.
 
 ---
@@ -27,8 +31,8 @@ flowchart TD
     P2 -->|Finds Specific Errors| P3
     P3 -->|Pinpoints Microservice Bottleneck| RCA[Root Cause Analysis]
 
-    classDef pil fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class P1,P2,P3 pil;
+    classDef pilStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class P1,P2,P3 pilStyle;
 ```
 
 ### Pillar Comparison
@@ -83,8 +87,8 @@ graph LR
     GS --> E[3. Errors: Rate of requests that fail]
     GS --> S[4. Saturation: Constrained resource fullness %]
 
-    classDef sig fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class L,T,E,S sig;
+    classDef sigStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class L,T,E,S sigStyle;
 ```
 
 1. **Latency**: Differentiate between the latency of successful requests and failed requests (a fast 500 error is not a good response).
@@ -109,10 +113,10 @@ flowchart LR
     AuthZ -->|Allowed: Has 'admin' role| Process[Execute Operation]
     AuthZ -->|Denied: Lacks permission| Reject403[403 Forbidden]
 
-    classDef check fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class DefFail fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
-    class AuthN,AuthZ check;
-    class Reject401,Reject403 DefFail;
+    classDef checkStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    classDef failStyle fill:#fee2e2,stroke:#ef4444,stroke-width:1px;
+    class AuthN,AuthZ checkStyle;
+    class Reject401,Reject403 failStyle;
 ```
 
 ### Modern Authentication Standards
@@ -148,3 +152,13 @@ When leading security and observability architecture sign-offs:
 - [ ] Is data encrypted in transit using TLS 1.3 and at rest using KMS-managed envelope encryption?
 - [ ] Is the Principle of Least Privilege enforced on all cloud IAM roles and service accounts?
 - [ ] Does the design satisfy legal compliance mandates (GDPR, SOC 2, HIPAA) regarding data retention and residency?
+
+---
+
+## 8. Primary Sources and Further Reading
+
+- *Site Reliability Engineering: How Google Runs Production Systems* (O'Reilly, 2016) - Chapter 6: Monitoring Distributed Systems.
+- **OpenTelemetry Specification**: OpenTelemetry Documentation and W3C Trace Context Specification (https://opentelemetry.io/).
+- **RFC 6749**: The OAuth 2.0 Authorization Framework (IETF, 2012).
+- **RFC 7519**: JSON Web Token (JWT) (IETF, 2015).
+- **NIST Special Publication 800-57**: *Recommendation for Key Management* (NIST, 2020).

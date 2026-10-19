@@ -1,5 +1,9 @@
 # Module 2.2: Database Replication, Sharding, and Consistent Hashing
 
+[Home](../README.md) > [Module 2: Data Architecture](./README.md) > **Chapter 2.2: Replication, Sharding & Consistent Hashing**
+
+---
+
 When data volumes exceed the capacity of a single physical server, or read traffic threatens to overwhelm a single database instance, systems must scale horizontally. Technical program managers must understand how replication provides fault tolerance and read scale, while sharding partitions write workloads.
 
 ---
@@ -11,7 +15,7 @@ Replication creates redundant copies of data across multiple physical machines t
 ```mermaid
 flowchart TD
     subgraph SingleLeader [Single-Leader / Master-Replica]
-        App1[Application] -->|Synchronous Writes| Leader[Primary / Leader Node]
+        App1[Application Tier] -->|Synchronous Writes| Leader[Primary / Leader Node]
         Leader -->|Asynchronous Replication Stream| Replica1[Read Replica 1]
         Leader -->|Asynchronous Replication Stream| Replica2[Read Replica 2]
         App1 -->|Read Queries| Replica1
@@ -21,7 +25,7 @@ flowchart TD
     subgraph Leaderless [Leaderless / Quorum Replication]
         App2[Application / Coordinator] -->|Write to Quorum W=2| NodeA[Node A]
         App2 -->|Write to Quorum W=2| NodeB[Node B]
-        App2 -.->|Write Drops| NodeC[Node C]
+        App2 -.->|Write Drops / Network Split| NodeC[Node C]
     end
 
     classDef sStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
@@ -34,7 +38,7 @@ flowchart TD
 
 | Model | Write Mechanism | Read Mechanism | Strengths | Operational Risks | Example Systems |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Single-Leader** | Single master node accepts all writes | Master or read replicas accept read queries | Simple write ordering; no write conflict resolution required | Master node is single point of failure; replication lag | MySQL, PostgreSQL, Redis |
+| **Single-Leader** | Single master node accepts all writes | Master or read replicas accept read queries | Simple write ordering; no write conflict resolution required | Master node is single point of failure; replication lag causes stale reads | MySQL, PostgreSQL, Redis |
 | **Multi-Leader** | Multiple master nodes in different data centers accept writes | Local master or local replicas serve reads | Low write latency across continents; survives DC outages | Complex write conflicts require resolution (LWW or CRDTs) | Multi-region Couchbase, DynamoDB Global Tables |
 | **Leaderless** | Writes sent to multiple peers simultaneously | Reads query multiple peers; resolves versions via quorum | Highly available; no failover pauses; tolerates node drops | Inconsistent reads if quorum formula not met; repair overhead | Apache Cassandra, AWS DynamoDB, ScyllaDB |
 
@@ -69,7 +73,7 @@ sequenceDiagram
 1. **Read-Your-Own-Writes Consistency**: Guarantees that if a user updates data, their subsequent reads reflect that update.
    - *Implementation*: Route reads for the updating user to the primary database for 10 seconds post-write, while routing other users to read replicas.
 2. **Monotonic Reads**: Guarantees that a user will never see time move backward (e.g. reading from an up-to-date replica on request 1, then hitting a lagging replica on request 2).
-   - *Implementation*: Hash the user ID to consistently route a given user to the same replica.
+   - *Implementation*: Hash the user ID to consistently route a given user to the same replica instance.
 
 ---
 
@@ -87,15 +91,15 @@ graph TD
     Hash --> H1[Shard = hash key modulo N]
     Directory --> D1[Central Lookup Service maps Entity ID to Shard ID]
 
-    classDef strat fill:#fef3c7,stroke:#d97706,stroke-width:1px;
-    class Range,Hash,Directory strat;
+    classDef stratStyle fill:#fef3c7,stroke:#d97706,stroke-width:1px;
+    class Range,Hash,Directory stratStyle;
 ```
 
 ### Sharding Trade-off Matrix
 
 | Strategy | Logic | Pros | Cons |
 | :--- | :--- | :--- | :--- |
-| **Range-Based** | Partitions by value ranges (e.g. dates: 2024-Q1, 2024-Q2) | Efficient range queries (e.g. all transactions in March) | Leads to hot spots when writes target current timestamp |
+| **Range-Based** | Partitions by value ranges (e.g. dates: 2024-Q1, 2024-Q2) | Efficient range queries (e.g. all transactions in March) | Hot spots occur when high write volumes target the current timestamp |
 | **Hash-Based** | Partitions using hash function: `hash(user_id) % N` | Uniform write distribution; eliminates date hot spots | Range queries require querying every single shard (Scatter-Gather) |
 | **Directory-Based** | Lookup service maintains mapping table of key to shard | Maximum flexibility; shards can be moved dynamically | Directory lookup service becomes a single point of failure and bottleneck |
 
@@ -109,17 +113,17 @@ Traditional modulo hashing (`hash(key) % N`) breaks down when nodes are added or
 flowchart TD
     subgraph HashRing [Consistent Hashing Ring: 0 to 2^32 - 1]
         direction TB
-        NodeA[Node A (Virtual Nodes: A1, A2, A3)]
-        NodeB[Node B (Virtual Nodes: B1, B2, B3)]
-        NodeC[Node C (Virtual Nodes: C1, C2, C3)]
+        NodeA[Node A Virtual Nodes: A1, A2, A3]
+        NodeB[Node B Virtual Nodes: B1, B2, B3]
+        NodeC[Node C Virtual Nodes: C1, C2, C3]
     end
 
     Key1[Key 1] -->|Hashes to Ring -> Moves Clockwise| NodeA
     Key2[Key 2] -->|Hashes to Ring -> Moves Clockwise| NodeB
     Key3[Key 3] -->|Hashes to Ring -> Moves Clockwise| NodeC
 
-    classDef ring fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
-    class HashRing ring;
+    classDef ringStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
+    class HashRing ringStyle;
 ```
 
 ### Key Principles of Consistent Hashing
@@ -153,3 +157,12 @@ Before signing off on database scaling architectures:
 - [ ] What is the planned re-sharding trigger (e.g. when any shard exceeds 70% storage capacity)?
 - [ ] Does the application support Read-Your-Own-Writes consistency for critical user paths?
 - [ ] Is cross-datacenter replication monitoring configured with alert thresholds for replication lag (e.g. alert if lag > 1000ms)?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- **Consistent Hashing Foundation**: *Consistent Hashing and Random Trees: Distributed Caching Protocols for Relieving Hot Spots on the World Wide Web* by David Karger et al. (ACM STOC, 1997).
+- *Designing Data-Intensive Applications* by Martin Kleppmann (O'Reilly Media, 2017) - Chapter 5: Replication & Chapter 6: Partitioning.
+- **Amazon Dynamo Paper**: *Dynamo: Amazon's Highly Available Key-value Store* by Giuseppe DeCandia et al. (SOSP, 2007) - Sections on Quorum and Consistent Hashing.
+- *Database Internals* by Alex Petrov (O'Reilly Media, 2019) - Part II: Distributed Systems.

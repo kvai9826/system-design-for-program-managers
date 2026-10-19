@@ -1,5 +1,9 @@
 # Module 2.1: Databases: Relational vs NoSQL vs NewSQL
 
+[Home](../README.md) > [Module 2: Data Architecture](./README.md) > **Chapter 2.1: Databases SQL vs NoSQL vs NewSQL**
+
+---
+
 Data architecture is the foundation of any software system. Choosing the right database technology affects developer velocity, schema migration complexity, query performance, and long-term operating costs. Technical program managers must navigate trade-offs between structured consistency and horizontal elasticity.
 
 ---
@@ -12,15 +16,15 @@ Database systems operate under two distinct philosophical frameworks governing t
 flowchart LR
     subgraph ACID [ACID Framework: Relational Systems]
         A[Atomicity: All operations succeed or none do]
-        C[Consistency: Data satisfies all invariant constraints]
+        C[Consistency: Data satisfies all schema constraints]
         I[Isolation: Concurrent transactions do not cross-contaminate]
         D[Durability: Committed data survives crashes and power loss]
     end
 
     subgraph BASE [BASE Framework: Distributed NoSQL Systems]
         BA[Basically Available: System guarantees availability]
-        S[Soft State: System state may drift without input]
-        E[Eventual Consistency: System becomes consistent given time]
+        S[Soft State: System state may drift without active input]
+        E[Eventual Consistency: Replicas converge given time]
     end
 
     classDef acidStyle fill:#eff6ff,stroke:#2563eb,stroke-width:1px;
@@ -51,15 +55,15 @@ graph TD
 
     NewSQL --> NS1[Google Cloud Spanner, CockroachDB, YugabyteDB]
 
-    classDef cat fill:#f8fafc,stroke:#334155,stroke-width:1px;
-    class Root,Relational,NoSQL,NewSQL cat;
+    classDef catStyle fill:#f8fafc,stroke:#334155,stroke-width:1px;
+    class Root,Relational,NoSQL,NewSQL catStyle;
 ```
 
 ### Comprehensive Database Comparison
 
 | Database Type | Primary Data Model | Strengths | Weaknesses | Best Use Cases |
 | :--- | :--- | :--- | :--- | :--- |
-| **Relational (RDBMS)** | Tables, Rows, Foreign Keys | Strict ACID transactions, complex SQL joins, mature tooling | Difficult to shard horizontally; fixed schema overhead | Financial ledgers, ERP, CRM, core user accounts |
+| **Relational (RDBMS)** | Tables, Rows, Foreign Keys | Strict ACID transactions, complex SQL joins, mature tooling | Difficult to shard horizontally; rigid schema migrations | Financial ledgers, ERP, CRM, core user accounts |
 | **Key-Value** | Opaque Key mapped to Value | Single-digit millisecond latency, massive scale, simple API | No rich querying on values; limited aggregation | Session stores, user shopping carts, cache lookup |
 | **Document** | Hierarchical JSON / BSON documents | Flexible schema, rapid prototyping, nested document queries | Memory hungry, potential document duplication | Content management systems, product catalogs, user profiles |
 | **Wide-Column** | Keyspace, Column Families, Sparse Rows | Linear write scalability across hundreds of nodes, high availability | No ACID transactions across partitions; no joins | IoT telemetry, clickstream logging, messaging history |
@@ -87,10 +91,10 @@ flowchart TD
         LSM4 --> LSM5[Slower reads: Check MemTable, Bloom filters, multiple SSTables]
     end
 
-    classDef bt fill:#eff6ff,stroke:#1d4ed8,stroke-width:1px;
-    classDef lsm fill:#ecfdf5,stroke:#047857,stroke-width:1px;
-    class BTree bt;
-    class LSMTree lsm;
+    classDef btStyle fill:#eff6ff,stroke:#1d4ed8,stroke-width:1px;
+    classDef lsmStyle fill:#ecfdf5,stroke:#047857,stroke-width:1px;
+    class BTree btStyle;
+    class LSMTree lsmStyle;
 ```
 
 ### Core Takeaway for TPMs
@@ -133,8 +137,8 @@ flowchart LR
     SvcSearch --> DB_Search[(Elasticsearch: Full-Text Product Search)]
     SvcFeed --> DB_Feed[(Cassandra: High-Throughput Timeline Feed)]
 
-    classDef dbs fill:#fef3c7,stroke:#b45309,stroke-width:1px;
-    class DB_User,DB_Order,DB_Search,DB_Feed dbs;
+    classDef dbsStyle fill:#fef3c7,stroke:#b45309,stroke-width:1px;
+    class DB_User,DB_Order,DB_Search,DB_Feed dbsStyle;
 ```
 
 ---
@@ -149,3 +153,12 @@ When reviewing data store proposals:
 - [ ] How will schema migrations be managed without locking tables or degrading production latency?
 - [ ] Are secondary indexes audited and restricted to high-frequency query paths?
 - [ ] Has the team defined retention and archival policies for older records (e.g. cold storage partitioning)?
+
+---
+
+## 7. Primary Sources and Further Reading
+
+- **Google Spanner Paper**: *Spanner: Google's Globally-Distributed Database* by James C. Corbett et al. (OSDI, 2012).
+- **Amazon Dynamo Paper**: *Dynamo: Amazon's Highly Available Key-value Store* by Giuseppe DeCandia et al. (SOSP, 2007).
+- **Relational Model Foundation**: *A Relational Model of Data for Large Shared Data Banks* by E. F. Codd (Communications of the ACM, 1970).
+- *Designing Data-Intensive Applications* by Martin Kleppmann (O'Reilly Media, 2017) - Chapter 3: Storage and Retrieval.
